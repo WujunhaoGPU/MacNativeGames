@@ -3,6 +3,7 @@ import sys
 import tempfile
 import time
 import unittest
+import plistlib
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1]/'games/totk/ios/tools'
@@ -54,6 +55,20 @@ class SeedBeside(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             ipa, app = self.layout(Path(d), 'Tears of the Kingdom.ipa'); (app/'GameData/shader-seed').mkdir()
             self.assertIsNone(install_device.seed_beside(ipa, app))
+class ProgressShortcut(unittest.TestCase):
+    def test_new_totk_install_has_manager_entry_and_botw_does_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            app=Path(d)/'Game.app'; app.mkdir(); path=app/'Info.plist'
+            original={'CFBundleIdentifier':'fixture.game','UIApplicationSceneManifest':{'UIApplicationSupportsMultipleScenes':False}}
+            path.write_bytes(plistlib.dumps(original))
+            build_ipa.configure_shortcuts(app,False)
+            configured=plistlib.loads(path.read_bytes())
+            item,=configured.pop('UIApplicationShortcutItems')
+            self.assertEqual(item['UIApplicationShortcutItemType'],'org.macnativegames.totk.progress')
+            self.assertTrue(item['UIApplicationShortcutItemTitle'])
+            self.assertEqual(configured,original)
+            build_ipa.configure_shortcuts(app,True)
+            self.assertEqual(plistlib.loads(path.read_bytes()),original)
 
 
 def read_pack(parts):
