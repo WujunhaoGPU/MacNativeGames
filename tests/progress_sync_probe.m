@@ -40,13 +40,13 @@ int main(int argc,const char **argv) { @autoreleasepool {
     CHECK(argc==3,"scenario and fixture path");NSString *scenario=@(argv[1]);NSURL *root=[NSURL fileURLWithPath:@(argv[2])];
     if([scenario isEqual:@"errors"]) {
         NSError *early=nil;[TOTKProgressSync.shared useFolder:root error:&early];
-        CHECK([early.localizedDescription containsString:@"仍在准备"],"folder selection before game preparation has a recoverable error");
+        CHECK([early.localizedDescription containsString:@(TOTK_UI("仍在准备","still preparing"))],"folder selection before game preparation has a recoverable error");
         CHECK(!enableCalls&&!starts,"early folder choice cannot enable sync or launch an unprepared game");
-        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteOutOfSpaceError userInfo:nil]) containsString:@"释放空间"],"local space error offers recovery");
-        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:@"NSFileProviderErrorDomain" code:NSFileProviderErrorInsufficientQuota userInfo:nil]) containsString:@"iCloud 空间不足"],"provider quota error distinguished");
-        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadNoPermissionError userInfo:nil]) containsString:@"重新选择"],"permission error has reauthorization exit");
-        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet userInfo:nil]) containsString:@"网络恢复"],"offline error does not claim upload success");
-        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:@"wrapper" code:0 userInfo:@{NSUnderlyingErrorKey:[NSError errorWithDomain:NSPOSIXErrorDomain code:ENOSPC userInfo:nil]}]) containsString:@"空间不足"],"underlying ENOSPC retained through wrappers");
+        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteOutOfSpaceError userInfo:nil]) containsString:@(TOTK_UI("释放空间","Free space"))],"local space error offers recovery");
+        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:@"NSFileProviderErrorDomain" code:NSFileProviderErrorInsufficientQuota userInfo:nil]) containsString:@(TOTK_UI("iCloud 空间不足","iCloud storage is full"))],"provider quota error distinguished");
+        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadNoPermissionError userInfo:nil]) containsString:@(TOTK_UI("重新选择","choose a writable sync folder again"))],"permission error has reauthorization exit");
+        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet userInfo:nil]) containsString:@(TOTK_UI("网络恢复","network returns"))],"offline error does not claim upload success");
+        CHECK([TOTKProgressErrorMessage([NSError errorWithDomain:@"wrapper" code:0 userInfo:@{NSUnderlyingErrorKey:[NSError errorWithDomain:NSPOSIXErrorDomain code:ENOSPC userInfo:nil]}]) containsString:@(TOTK_UI("空间不足","Storage is full"))],"underlying ENOSPC retained through wrappers");
         CHECK(TOTKProgressErrorMessage(nil)==nil,"nil error remains nil for caller fallback");
         printf("PASS: %lu error recovery message checks\n",(unsigned long)checks);return 0;
     }
@@ -100,7 +100,11 @@ int main(int argc,const char **argv) { @autoreleasepool {
             until(^BOOL{return [sync.viewState[@"versions"] count]==2;});
             CHECK([sync.viewState[@"base"] isEqual:base],"management receives remote records without starting a game or silently applying them");
             [sync selectVersion:remoteID restore:NO];
-            until(^BOOL{return [sync.viewState[@"status"] containsString:@"所选完整进度"];});
+            until(^BOOL{
+                for(NSDictionary *record in sync.viewState[@"versions"])
+                    if([record[@"id"] isEqual:sync.viewState[@"base"]]&&[record[@"selected"] isEqual:remoteID])return YES;
+                return NO;
+            });
             expected=@"remote-next";
         }
         CHECK(!sync.gameRunning,"management selection stays in the manager");
@@ -115,16 +119,16 @@ int main(int argc,const char **argv) { @autoreleasepool {
     }
     [sync prepareProfile:profile gameVersion:@"1.4.3" host:nil completion:^{starts++;}];
     if([scenario isEqual:@"retry"]) {
-        until(^BOOL{return [sync.viewState[@"status"] containsString:@"索引损坏"];});CHECK(!starts,"corrupt state never launches empty game");
+        until(^BOOL{return [sync.viewState[@"status"] containsString:@(TOTK_UI("索引损坏","index is damaged"))];});CHECK(!starts,"corrupt state never launches empty game");
         CHECK([goodState writeToURL:at(localRoot,@"state.json") atomically:YES],"repair fixture index");[sync refresh];
     }
     if([scenario isEqual:@"pending-error"]) {
-        until(^BOOL{return [sync.viewState[@"status"] containsString:@"安排的进度暂不能载入"];});
+        until(^BOOL{return [sync.viewState[@"status"] containsString:@(TOTK_UI("安排的进度暂不能载入","selected progress cannot be loaded"))];});
         CHECK(!starts&&[sync.viewState[@"canContinueLocal"] boolValue],"failed pending load stays visible with local recovery available");
         [sync cancelPendingSelection];[sync continueLocal];
     }
     if([scenario isEqual:@"pending-inbox"]) {
-        until(^BOOL{return [sync.viewState[@"status"] containsString:@"格式不匹配"];});
+        until(^BOOL{return [sync.viewState[@"status"] containsString:@(TOTK_UI("格式不匹配","format does not match"))];});
         CHECK(!starts,"malformed incoming record cannot silently start a different progress");
         CHECK([NSFileManager.defaultManager fileExistsAtPath:at(localRoot,[NSString stringWithFormat:@"incoming/%@.json",badID]).path],"unaccepted staging file retained for retry");
         [sync continueLocal];
@@ -155,6 +159,8 @@ int main(int argc,const char **argv) { @autoreleasepool {
             CHECK([contents(active) isEqual:@"seed"],"running game never hot replaced by remote");
             CHECK([sync.viewState[@"base"] isEqual:base],"remote receive does not advance running base");
             CHECK([sync.viewState[@"restartToContinue"] boolValue],"received compatible successor offers restart without changing running data");
+            [sync refresh];until(^BOOL{return ![[sync valueForKey:@"transferRunning"] boolValue];});
+            CHECK(!waits&&!managers,"foreground-style refresh only stages progress; no automatic prompt or manager while running");
             CHECK([sync.viewState[@"historyRecordBytes"] unsignedLongLongValue]>[sync.viewState[@"historyBytes"] unsignedLongLongValue],"history storage reports encoded record files rather than decoded payload size");
         }
         if([scenario isEqual:@"commit"]) {
@@ -167,7 +173,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
         }
         if([scenario isEqual:@"backup"]) {
             pendingSave=YES;[sync nameBackup:@"during save" version:nil replacing:nil];
-            until(^BOOL{return [sync.viewState[@"status"] containsString:@"完成后"];});CHECK([sync.viewState[@"backups"] count]==0,"backup waits instead of naming previous save");
+            until(^BOOL{return [sync.viewState[@"status"] containsString:@(TOTK_UI("完成后","saving finishes"))];});CHECK([sync.viewState[@"backups"] count]==0,"backup waits instead of naming previous save");
             payload(active,@"save being named");pendingSave=NO;[sync sealCommittedGeneration:1];
             until(^BOOL{return [sync.viewState[@"backups"] count]==1;});
             CHECK([sync.viewState[@"backups"][0][@"target"] isEqual:sync.viewState[@"base"]],"deferred backup names completed new version");
@@ -182,7 +188,7 @@ int main(int argc,const char **argv) { @autoreleasepool {
         }
         if([scenario isEqual:@"invalid"]) {
             [sync selectVersion:@"00000000-0000-0000-0000-000000000001" restore:YES];
-            until(^BOOL{return [sync.viewState[@"status"] containsString:@"尚未到达"];});
+            until(^BOOL{return [sync.viewState[@"status"] containsString:@(TOTK_UI("尚未到达","has not arrived yet"))];});
             CHECK(![defaults objectForKey:@"TOTK_PROGRESS_PENDING_ACTION"],"unknown version cannot be queued for next boot");
             [sync selectVersion:base restore:YES];until(^BOOL{return [sync.viewState[@"pendingAction"] count]>0;});
             CHECK([sync.viewState[@"base"] isEqual:base],"pending choice never changes active base");

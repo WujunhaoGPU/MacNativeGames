@@ -43,8 +43,8 @@ def configure_shortcuts(app, botw):
     else:
         info['UIApplicationShortcutItems']=[{
             'UIApplicationShortcutItemType':'org.macnativegames.totk.progress',
-            'UIApplicationShortcutItemTitle':'游戏进度',
-            'UIApplicationShortcutItemSubtitle':'同步、历史与备份',
+            'UIApplicationShortcutItemTitle':'Game Progress',
+            'UIApplicationShortcutItemSubtitle':'Sync, history and backups',
             'UIApplicationShortcutItemIconType':'UIApplicationShortcutIconTypeBookmark',
         }]
     path.write_bytes(plistlib.dumps(info))

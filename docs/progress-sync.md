@@ -10,14 +10,16 @@ has its normal installation and renewal limits.
 
 - Mac: open **Game Progress** from the application's menu.
 - iPhone/iPad: long-press the Home Screen game icon and choose **游戏进度**.
-  Opening management this way does not start the game; **进入游戏** starts it.
+  Opening management this way does not start the game; **Play / 进入游戏** starts it.
 - On each device, choose the same iCloud Drive folder once. The system picker
   grants access; a security-scoped bookmark remembers it.
 - Save in the game, leave the source online briefly, then start the game on the
   other device. iCloud propagation can take time. The Files app is not needed
   for routine discovery or downloads.
 - A game already running only stages new remote records. Exit and reopen to
-  apply them. Remote files never replace the running game's working directory.
+  apply them. Returning to a running game never presents sync alerts; news stays
+  in the progress view or the next pre-game launch. Remote files never replace
+  the running game's working directory.
 - If devices independently continue the same older save, both branches remain.
   Choose a branch in management. The other branch remains available in history.
 - History and named backups can be restored. Restoration is a new selection
@@ -89,3 +91,5 @@ immediate lock-screen propagation have not been fully validated.
 Only source, synthetic tests and this document belong in the contribution. No
 real save files, device evidence, private profiles, game content or credentials
 are included.
+
+Progress UI, status and recovery messages follow the existing `TOTK_UI` Chinese/English selector (`TOTK_UI_LANG` can override it). Static Home Screen shortcuts use localized `InfoPlist.strings` resources with an English fallback. Player-created backup names and record metadata are not translated.

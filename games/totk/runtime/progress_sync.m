@@ -62,7 +62,7 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
 - (instancetype)init {
     if ((self=[super init])) {
         _storeQueue=dispatch_queue_create("totk.progress.local-store",DISPATCH_QUEUE_SERIAL);
-        _viewState=@{@"status":@"同步尚未开启",@"versions":@[],@"backups":@[],@"heads":@[]};
+        _viewState=@{@"status":@(TOTK_UI("同步尚未开启", "Sync is not enabled")),@"versions":@[],@"backups":@[],@"heads":@[]};
         _lastCapturedGeneration=UINT64_MAX;
     }
     return self;
@@ -120,7 +120,7 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
             if (!device) { device=NSUUID.UUID.UUIDString.lowercaseString;[defaults setObject:device forKey:@"TOTK_PROGRESS_DEVICE_ID"]; }
             NSError *error=nil;
             self->_store=[[TOTKProgressStore alloc] initWithRoot:self->_localRoot device:device gameVersion:self->_gameVersion error:&error];
-            if (!self->_store) { [self publish:TOTKProgressErrorMessage(error)?:@"本机进度区暂不可用，请重试；现有存档保留。"];return; }
+            if (!self->_store) { [self publish:TOTKProgressErrorMessage(error)?:@(TOTK_UI("本机进度区暂不可用，请重试；现有存档保留。", "The local progress store is unavailable. Try again; existing saves are retained."))];return; }
 #if TARGET_OS_IPHONE
             self->_store.deviceName=UIDevice.currentDevice.name;
 #else
@@ -136,18 +136,18 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
             }
             self->_localRecoveryRequired=![self->_store workingProfileMatchesBase:&error];
             if (!self->_localRecoveryRequired && self->_store.baseVersion && ![self->_store checkout:self->_store.baseVersion resolving:NO error:&error]) {
-                [self publish:TOTKProgressErrorMessage(error)?:@"无法准备完整进度；保留原档，请重试。"];return;
+                [self publish:TOTKProgressErrorMessage(error)?:@(TOTK_UI("无法准备完整进度；保留原档，请重试。", "Could not prepare complete progress. The original save is retained; try again."))];return;
             }
             NSDictionary *pending=[NSUserDefaults.standardUserDefaults dictionaryForKey:PendingKey];
             if(pending) {
                 BOOL applied=[pending[@"restore"] boolValue]?[self->_store restoreVersion:pending[@"version"] error:&error]!=nil:[self->_store checkout:pending[@"version"] resolving:YES error:&error];
                 if(applied){[NSUserDefaults.standardUserDefaults removeObjectForKey:PendingKey];self->_localRecoveryRequired=NO;self->_startupProblem=nil;}
-                else self->_startupProblem=[@"安排的进度暂不能载入：" stringByAppendingString:TOTKProgressErrorMessage(error)?:@"请重试或取消该安排；原进度保留。"];
+                else self->_startupProblem=[@(TOTK_UI("安排的进度暂不能载入：", "The selected progress cannot be loaded yet: ")) stringByAppendingString:TOTKProgressErrorMessage(error)?:@(TOTK_UI("请重试或取消该安排；原进度保留。", "Retry or cancel the selection; the original progress is retained."))];
             }
         }
         NSURL *prepared=self->_store.workingProfile?:self->_sourceProfile;
         self->_localPrepared=YES;
-        [self publish:self->_startupProblem?:(self->_localRecoveryRequired?@"上次退出留下未归档的本机存档，完整性尚未确认，已保留。可尝试使用本机继续，或从历史选择已验证的进度。":@"本机进度已保留，正在检查其他设备的新进度…")];
+        [self publish:self->_startupProblem?:(self->_localRecoveryRequired?@(TOTK_UI("上次退出留下未归档的本机存档，完整性尚未确认，已保留。可尝试使用本机继续，或从历史选择已验证的进度。", "The previous session left an unarchived local save. It is retained, but its completeness has not been confirmed. Continue locally or select verified progress from history.")):@(TOTK_UI("本机进度已保留，正在检查其他设备的新进度…", "Local progress is retained. Checking for progress from other devices…")))];
         dispatch_async(dispatch_get_main_queue(),^{
             self->_readyProfile=prepared;self->_localPrepared=YES;self->_hasStore=YES;
             if(self.gameRunning)runtime_fs_progress_enable();
@@ -171,7 +171,7 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
 #endif
     NSURL *url=[NSURL URLByResolvingBookmarkData:bookmark options:options relativeToURL:nil bookmarkDataIsStale:&stale error:&error];
     if (!url||![url startAccessingSecurityScopedResource]) {
-        _folderAccessible=NO;dispatch_async(_storeQueue,^{[self publish:@"云文件夹授权已失效，请重新选择；本机进度保留。"];});return;
+        _folderAccessible=NO;dispatch_async(_storeQueue,^{[self publish:@(TOTK_UI("云文件夹授权已失效，请重新选择；本机进度保留。", "Cloud folder access has expired. Choose the folder again; local progress is retained."))];});return;
     }
     _folder=url;_folderAccessible=YES;
     if (stale) [self saveBookmark:url error:nil];
@@ -189,10 +189,10 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
 }
 - (void)useFolder:(NSURL *)folder error:(NSError **)error {
     if(!_sourceProfile||!_localRoot||!_gameVersion.length||!_localPrepared) {
-        if(error)*error=[NSError errorWithDomain:@"TOTKProgress" code:5 userInfo:@{NSLocalizedDescriptionKey:@"游戏仍在准备，请等待启动完成后再选择同步文件夹。"}];return;
+        if(error)*error=[NSError errorWithDomain:@"TOTKProgress" code:5 userInfo:@{NSLocalizedDescriptionKey:@(TOTK_UI("游戏仍在准备，请等待启动完成后再选择同步文件夹。", "The game is still preparing. Wait for preparation to finish before choosing a sync folder."))}];return;
     }
     if (![folder startAccessingSecurityScopedResource]) {
-        if (error) *error=[NSError errorWithDomain:@"TOTKProgress" code:5 userInfo:@{NSLocalizedDescriptionKey:@"未获得文件夹访问权限。"}];return;
+        if (error) *error=[NSError errorWithDomain:@"TOTKProgress" code:5 userInfo:@{NSLocalizedDescriptionKey:@(TOTK_UI("未获得文件夹访问权限。", "Folder access was not granted."))}];return;
     }
     if (![self saveBookmark:folder error:error]) { [folder stopAccessingSecurityScopedResource];return; }
     if (_folder) [_folder stopAccessingSecurityScopedResource];
@@ -233,11 +233,11 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
         [_timer invalidate];_timer=nil;_needsTransfer=NO;
         if(_start&&_localPrepared&&!_localRecoveryRequired)[self continueLocal];
     }
-    dispatch_async(_storeQueue,^{[self publish:enabled?@"云同步已恢复，正在检查并补传本机进度。":@"云同步已暂停；本机保存、历史和备份继续保留。已开始的传输可能仍会收尾。"];});
+    dispatch_async(_storeQueue,^{[self publish:enabled?@(TOTK_UI("云同步已恢复，正在检查并补传本机进度。", "Cloud sync resumed. Checking for updates and uploading pending local progress.")):@(TOTK_UI("云同步已暂停；本机保存、历史和备份继续保留。已开始的传输可能仍会收尾。", "Cloud sync paused. Local saves, history and backups are retained. Transfers already started may still finish."))];});
 }
 - (void)cancelPendingSelection {
     [NSUserDefaults.standardUserDefaults removeObjectForKey:PendingKey];
-    dispatch_async(_storeQueue,^{self->_startupProblem=nil;[self publish:@"已取消下次载入安排，当前进度不变。"];});
+    dispatch_async(_storeQueue,^{self->_startupProblem=nil;[self publish:@(TOTK_UI("已取消下次载入安排，当前进度不变。", "Next-launch selection cancelled. Current progress is unchanged."))];});
 }
 - (void)continueLocal {
     NSAssert(NSThread.isMainThread,@"start on main");
@@ -248,7 +248,7 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
         self.gameRunning=YES;
         NSURL *ready=self->_store.workingProfile?:self->_readyProfile;
         BOOL managed=self->_store!=nil;
-        [self publish:@"本机进度已准备好，正在进入游戏。"];
+        [self publish:@(TOTK_UI("本机进度已准备好，正在进入游戏。", "Local progress is ready. Starting the game."))];
         dispatch_async(dispatch_get_main_queue(),^{
             self->_readyProfile=ready;
             if (ready) setenv("TOTK_SAVE_PROFILE_DIR",ready.fileSystemRepresentation,1);
@@ -272,17 +272,17 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
             if(configuration!=self->_configuration){dispatch_async(dispatch_get_main_queue(),^{self->_transferRunning=NO;[self refresh];});return;}
             NSMutableArray *all=[problems mutableCopy];NSError *error=nil;
             for (NSURL *file in incoming) {
-                if (![self->_store ingestRecordAtURL:file error:&error]) [all addObject:TOTKProgressErrorMessage(error)?:@"某版本暂不可用。"];
+                if (![self->_store ingestRecordAtURL:file error:&error]) [all addObject:TOTKProgressErrorMessage(error)?:@(TOTK_UI("某版本暂不可用。", "A version is temporarily unavailable."))];
                 else if([file.URLByDeletingLastPathComponent.URLByResolvingSymlinksInPath.path isEqual:[self->_localRoot URLByAppendingPathComponent:@"incoming"].URLByResolvingSymlinksInPath.path])
                     [NSFileManager.defaultManager removeItemAtURL:file error:nil]; // The immutable verified record is already durable.
             }
-            if (![self->_store acknowledgeDownloads:&error]) [all addObject:TOTKProgressErrorMessage(error)?:@"接收确认尚未保存。"];
+            if (![self->_store acknowledgeDownloads:&error]) [all addObject:TOTKProgressErrorMessage(error)?:@(TOTK_UI("接收确认尚未保存。", "The receipt has not been saved yet."))];
             [all addObjectsFromArray:self->_store.pendingProblems];
             NSArray *heads=self->_store.heads;
-            NSString *status=all.count?all.firstObject:@"已检查，暂未发现其他新进度。";
-            if (!all.count&&heads.count>1) status=@"有多个进度待选择，各份都已保留。";
-            else if (!all.count&&heads.count==1&&![heads.firstObject isEqual:self->_store.baseVersion]) status=self.gameRunning?@"已收到其他设备的新进度；退出并重新打开游戏后接续，当前游玩保持不变。":@"正在准备接续进度…";
-            if(self->_localRecoveryRequired)status=@"上次退出留下未归档的本机存档，完整性尚未确认，已保留。可尝试使用本机继续，或从历史选择已验证的进度。";
+            NSString *status=all.count?all.firstObject:@(TOTK_UI("已检查，暂未发现其他新进度。", "Checked; no other new progress is currently visible."));
+            if (!all.count&&heads.count>1) status=@(TOTK_UI("有多个进度待选择，各份都已保留。", "Multiple progress branches are available. All are retained; choose one to continue."));
+            else if (!all.count&&heads.count==1&&![heads.firstObject isEqual:self->_store.baseVersion]) status=self.gameRunning?@(TOTK_UI("已收到其他设备的新进度；退出并重新打开游戏后接续，当前游玩保持不变。", "Progress from another device was received. Exit and reopen the game to continue from it; your current game is unchanged.")):@(TOTK_UI("正在准备接续进度…", "Preparing to continue progress…"));
+            if(self->_localRecoveryRequired)status=@(TOTK_UI("上次退出留下未归档的本机存档，完整性尚未确认，已保留。可尝试使用本机继续，或从历史选择已验证的进度。", "The previous session left an unarchived local save. It is retained, but its completeness has not been confirmed. Continue locally or select verified progress from history."));
             if(self->_startupProblem)status=self->_startupProblem;
             [self publish:status];
             dispatch_async(dispatch_get_main_queue(),^{
@@ -336,7 +336,7 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
         NSURL *profile=self->_readyProfile?:self->_sourceProfile;
         NSString *saved=[self->_store captureProfile:profile error:&error];
         runtime_fs_progress_snapshot_end();
-        if (saved) {self->_lastCapturedGeneration=generation;self->_localRecoveryRequired=NO;[self finishWaitingBackups];[self publish:self->_enabled&&self->_folderAccessible?@"本机已保存，正在提交 iCloud；不代表其他设备已收到。":@"本机已保存，云同步未开启；本地历史已保留。"];}
+        if (saved) {self->_lastCapturedGeneration=generation;self->_localRecoveryRequired=NO;[self finishWaitingBackups];[self publish:self->_enabled&&self->_folderAccessible?@(TOTK_UI("本机已保存，正在提交 iCloud；不代表其他设备已收到。", "Saved locally and uploading to iCloud. This does not mean other devices have received it.")):@(TOTK_UI("本机已保存，云同步未开启；本地历史已保留。", "Saved locally. Cloud sync is not enabled; local history is retained."))];}
         else if (error) [self publish:TOTKProgressErrorMessage(error)];
         dispatch_async(dispatch_get_main_queue(),^{if(saved)[self refresh];});
     }});
@@ -350,38 +350,38 @@ static NSString *const WaitingBackupsKey = @"TOTK_PROGRESS_WAITING_BACKUPS";
             self->_lastCapturedGeneration=generation;
             self->_localRecoveryRequired=NO;
             [self finishWaitingBackups];
-            [self publish:self->_enabled&&self->_folderAccessible?@"本机已保存，正在提交 iCloud；不代表其他设备已收到。":@"本机已保存，云同步未开启；本地历史已保留。"];
+            [self publish:self->_enabled&&self->_folderAccessible?@(TOTK_UI("本机已保存，正在提交 iCloud；不代表其他设备已收到。", "Saved locally and uploading to iCloud. This does not mean other devices have received it.")):@(TOTK_UI("本机已保存，云同步未开启；本地历史已保留。", "Saved locally. Cloud sync is not enabled; local history is retained."))];
             dispatch_async(dispatch_get_main_queue(),^{[self refresh];});
-        } else if (error) [self publish:[@"游戏存档仍在本机，但未能保留同步版本：" stringByAppendingString:TOTKProgressErrorMessage(error)]];
+        } else if (error) [self publish:[@(TOTK_UI("游戏存档仍在本机，但未能保留同步版本：", "The game save remains local, but its sync version could not be retained: ")) stringByAppendingString:TOTKProgressErrorMessage(error)]];
     }});
 }
 - (void)selectVersion:(NSString *)version restore:(BOOL)restore {
     dispatch_async(_storeQueue,^{
         NSError *error=nil;
-        if(!self->_store||![self->_store canLoadVersion:version error:&error]){[self publish:TOTKProgressErrorMessage(error)?:@"此版本暂不可用，请先完成下载。"];return;}
+        if(!self->_store||![self->_store canLoadVersion:version error:&error]){[self publish:TOTKProgressErrorMessage(error)?:@(TOTK_UI("此版本暂不可用，请先完成下载。", "This version is unavailable. Finish downloading it first."))];return;}
         if (self.gameRunning) {
             [NSUserDefaults.standardUserDefaults setObject:@{@"version":version,@"restore":@(restore)} forKey:PendingKey];
-            [self publish:@"已安排在下次启动时载入；当前游戏继续使用本机进度。"];return;
+            [self publish:@(TOTK_UI("已安排在下次启动时载入；当前游戏继续使用本机进度。", "Selected for the next launch. The current game continues using local progress."))];return;
         }
         BOOL ok=restore?[self->_store restoreVersion:version error:&error]!=nil:[self->_store checkout:version resolving:YES error:&error];
         if (!ok) {[self publish:TOTKProgressErrorMessage(error)];return;}
         self->_localRecoveryRequired=NO;
         self->_startupProblem=nil;
-        NSURL *ready=self->_store.workingProfile;[self publish:@"所选完整进度已准备好，其他版本仍保留。"];
+        NSURL *ready=self->_store.workingProfile;[self publish:@(TOTK_UI("所选完整进度已准备好，其他版本仍保留。", "The selected complete progress is ready. Other versions are retained."))];
         dispatch_async(dispatch_get_main_queue(),^{self->_readyProfile=ready;[self continueLocal];[self refresh];});
     });
 }
 - (void)nameBackup:(NSString *)name version:(NSString *)version replacing:(NSString *)backupID {
     dispatch_async(_storeQueue,^{NSError *error=nil;
         NSString *trimmed=[name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-        if(!trimmed.length||trimmed.length>120){[self publish:@"请输入 1 至 120 个字符的备份名称。"];return;}
+        if(!trimmed.length||trimmed.length>120){[self publish:@(TOTK_UI("请输入 1 至 120 个字符的备份名称。", "Enter a backup name of 1 to 120 characters."))];return;}
         if(!version&&self.gameRunning&&runtime_fs_progress_save_pending()) {
             NSMutableArray *waiting=[[NSUserDefaults.standardUserDefaults arrayForKey:WaitingBackupsKey] mutableCopy]?:[NSMutableArray new];
             [waiting addObject:trimmed];[NSUserDefaults.standardUserDefaults setObject:waiting forKey:WaitingBackupsKey];
-            [self publish:@"正在保存游戏，完成后自动为本次存档保留命名备份。"];return;
+            [self publish:@(TOTK_UI("正在保存游戏，完成后自动为本次存档保留命名备份。", "The game is saving. A named backup of this save will be kept when saving finishes."))];return;
         }
         NSString *target=version?:self->_store.baseVersion;
-        if (target&&[self->_store nameBackup:trimmed forVersion:target replacing:backupID error:&error]) [self publish:self->_enabled?@"命名备份已在本机保留，正在同步。":@"命名备份已在本机保留，联网同步开启后补传。"];else [self publish:TOTKProgressErrorMessage(error)?:@"尚无完整的已保存进度。"];
+        if (target&&[self->_store nameBackup:trimmed forVersion:target replacing:backupID error:&error]) [self publish:self->_enabled?@(TOTK_UI("命名备份已在本机保留，正在同步。", "The named backup is retained locally and is syncing.")):@(TOTK_UI("命名备份已在本机保留，联网同步开启后补传。", "The named backup is retained locally and will upload when online sync is enabled."))];else [self publish:TOTKProgressErrorMessage(error)?:@(TOTK_UI("尚无完整的已保存进度。", "No complete saved progress is available yet."))];
         dispatch_async(dispatch_get_main_queue(),^{[self refresh];});
     });
 }

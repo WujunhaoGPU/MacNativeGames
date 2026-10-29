@@ -13,7 +13,6 @@
 #include "game_version.h"   // GAME_FOLDER and TOTK_GAME_VERSION of this build (build_ipa.py's -D flags)
 #include "dmsh_chain.h"
 #include "settings_map.h"
-#include "game_version.h"
 #ifndef GAME_BOTW
 #import "progress_sync.h"
 #endif
@@ -98,8 +97,7 @@ static void apply_display_settings(void);   // below, next to the pane helpers i
 @interface TOTKGameController : UIViewController
 @property(nonatomic,strong) TOTKMetalView *gameView;
 #ifndef GAME_BOTW
-@property(nonatomic) BOOL progressPrepared, wantsProgress, noticeAfterCheck;
-@property(nonatomic,copy) NSString *lastProgressNotice;
+@property(nonatomic) BOOL progressPrepared, wantsProgress;
 - (void)showProgress;
 #endif
 @end
@@ -121,8 +119,6 @@ static void apply_display_settings(void);   // below, next to the pane helpers i
 #ifndef GAME_BOTW
     NSNotificationCenter *center=NSNotificationCenter.defaultCenter;
     [center addObserver:self selector:@selector(progressChanged:) name:TOTKProgressDidChange object:TOTKProgressSync.shared];
-    [center addObserver:self selector:@selector(progressChecked:) name:TOTKProgressDidCheck object:TOTKProgressSync.shared];
-    [center addObserver:self selector:@selector(returnedToGame:) name:UIApplicationDidBecomeActiveNotification object:nil];
 #endif
 }
 #ifndef GAME_BOTW
@@ -135,26 +131,6 @@ static void apply_display_settings(void);   // below, next to the pane helpers i
     if(self.wantsProgress&&self.progressPrepared&&[TOTKProgressSync.shared.viewState[@"localPrepared"] boolValue]) {
         self.wantsProgress=NO;[TOTKProgressSync.shared showFrom:self];
     }
-}
-- (void)returnedToGame:(NSNotification *)note {
-    (void)note;if(!self.progressPrepared||!TOTKProgressSync.shared.gameRunning)return;
-    self.noticeAfterCheck=YES;[self showProgressNotice];[TOTKProgressSync.shared refresh];
-}
-- (void)progressChecked:(NSNotification *)note {
-    (void)note;if(self.noticeAfterCheck){[self showProgressNotice];self.noticeAfterCheck=NO;}
-}
-- (void)showProgressNotice {
-    if(!self.view.window||self.presentedViewController||UIApplication.sharedApplication.applicationState!=UIApplicationStateActive)return;
-    NSDictionary *state=TOTKProgressSync.shared.viewState;
-    BOOL fork=[state[@"heads"] count]>1, restart=[state[@"restartToContinue"] boolValue]||[state[@"pendingAction"] count]>0;
-    if(!fork&&!restart)return;
-    NSString *key=[NSString stringWithFormat:@"%@/%@",[state[@"heads"] componentsJoinedByString:@","],state[@"pendingAction"]];
-    if([key isEqual:self.lastProgressNotice])return;
-    self.lastProgressNotice=key;self.noticeAfterCheck=NO;
-    UIAlertController *alert=[UIAlertController alertControllerWithTitle:fork?@"游戏进度待选择":@"有新进度可接续" message:fork?@"不同设备各有新进度，各份都已保留。可在游戏进度中选择用于继续的一份。":@"当前游玩保持不变。退出并重新打开游戏后，可接续已收到的新进度。" preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"稍后" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"查看进度" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action){(void)action;[self dismissViewControllerAnimated:YES completion:^{[self showProgress];}];}]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)dealloc {[NSNotificationCenter.defaultCenter removeObserver:self];}
 #endif

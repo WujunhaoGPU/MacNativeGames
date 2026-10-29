@@ -525,8 +525,8 @@ static void front_install_menu(void){
  progress.target=TOTKProgressSync.class;[appMenu insertItem:progress atIndex:0];
  [NSNotificationCenter.defaultCenter addObserverForName:TOTKProgressDidChange object:TOTKProgressSync.shared queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note){
   (void)note;NSDictionary *state=TOTKProgressSync.shared.viewState;
-  NSString *hint=[state[@"heads"] count]>1?@"进度待选":([state[@"restartToContinue"] boolValue]||[state[@"pendingAction"] count]?@"等待重开":nil);
-  progress.title=hint?[NSString stringWithFormat:@"游戏进度（%@）…",hint]:@(TOTK_UI("游戏进度…","Game Progress…"));
+  NSString *hint=[state[@"heads"] count]>1?@(TOTK_UI("进度待选","Choose progress")):([state[@"restartToContinue"] boolValue]||[state[@"pendingAction"] count]?@(TOTK_UI("等待重开","Restart to continue")):nil);
+  progress.title=hint?[NSString stringWithFormat:@(TOTK_UI("游戏进度（%@）…","Game Progress (%@)…")),hint]:@(TOTK_UI("游戏进度…","Game Progress…"));
   NSApp.dockTile.badgeLabel=hint;
  }];
 #endif

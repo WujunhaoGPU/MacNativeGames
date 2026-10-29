@@ -21,7 +21,7 @@ static BOOL recordName(NSURL *url) {
 static NSData *readTransfer(NSURL *url, NSError **error) {
     struct stat st;
     if (lstat(url.fileSystemRepresentation,&st) || !S_ISREG(st.st_mode) || st.st_size<0 || st.st_size>512ll*1024*1024) {
-        if (error) *error=[NSError errorWithDomain:@"TOTKProgress" code:2 userInfo:@{NSLocalizedDescriptionKey:@"云端文件尚不可读、不是普通文件或过大。"}];
+        if (error) *error=[NSError errorWithDomain:@"TOTKProgress" code:2 userInfo:@{NSLocalizedDescriptionKey:@(TOTK_UI("云端文件尚不可读、不是普通文件或过大。", "The cloud file is not readable yet, is not a regular file, or is too large."))}];
         return nil;
     }
     return [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:error];
@@ -70,7 +70,7 @@ static NSData *readTransfer(NSURL *url, NSError **error) {
                     NSData *existing=readTransfer(local,&readError);
                     if (!existing) return;
                     if (![transportHash(existing) isEqual:transportHash(data)]) {
-                        readError=[NSError errorWithDomain:@"TOTKProgress" code:3 userInfo:@{NSLocalizedDescriptionKey:@"同一云版本出现不同内容；本机副本已保留，未覆盖。"}]; return;
+                        readError=[NSError errorWithDomain:@"TOTKProgress" code:3 userInfo:@{NSLocalizedDescriptionKey:@(TOTK_UI("同一云版本出现不同内容；本机副本已保留，未覆盖。", "The same cloud version has different content. The local copy is retained and was not overwritten."))}]; return;
                     }
                 } else {
                     NSURL *target=[inbox URLByAppendingPathComponent:remote.lastPathComponent];
@@ -94,7 +94,7 @@ static NSData *readTransfer(NSURL *url, NSError **error) {
                 if ([NSFileManager.defaultManager fileExistsAtPath:url.path]) {
                     NSData *existing=readTransfer(url,&writeError);
                     if (existing && ![transportHash(existing) isEqual:transportHash(data)])
-                        writeError=[NSError errorWithDomain:@"TOTKProgress" code:3 userInfo:@{NSLocalizedDescriptionKey:@"云版本标识冲突，拒绝覆盖。"}];
+                        writeError=[NSError errorWithDomain:@"TOTKProgress" code:3 userInfo:@{NSLocalizedDescriptionKey:@(TOTK_UI("云版本标识冲突，拒绝覆盖。", "Cloud version identifiers conflict. Existing content will not be overwritten."))}];
                 } else [data writeToURL:url options:NSDataWritingAtomic error:&writeError];
             }];
             if (ce||writeError) [problems addObject:TOTKProgressErrorMessage(ce?:writeError)];

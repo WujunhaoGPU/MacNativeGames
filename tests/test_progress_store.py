@@ -61,12 +61,31 @@ class ProgressStoreTests(unittest.TestCase):
                 str(ROOT / "tests/progress_sync_probe.m"), "-o", str(binary),
             ], capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr)
-            for scenario in ("startup", "running", "fork", "restore", "commit", "retry", "recovery", "backup", "pause", "invalid", "pending-error", "pending-inbox", "errors", "enable-during-game", "management", "management-new"):
-                with self.subTest(scenario=scenario):
-                    result = subprocess.run([str(binary), scenario, str(pathlib.Path(directory) / scenario)],
-                                            capture_output=True, text=True, timeout=20)
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    print(result.stdout.strip())
+            scenarios = ("startup", "running", "fork", "restore", "commit", "retry", "recovery", "backup", "pause", "invalid", "pending-error", "pending-inbox", "errors", "enable-during-game", "management", "management-new")
+            for language in ("en", "zh"):
+                for scenario in scenarios:
+                    with self.subTest(language=language, scenario=scenario):
+                        result = subprocess.run([str(binary), scenario, str(pathlib.Path(directory) / language / scenario)],
+                                                env={**os.environ, "TOTK_UI_LANG": language},
+                                                capture_output=True, text=True, timeout=20)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        print(result.stdout.strip())
+
+    def test_native_ui_messages(self):
+        with tempfile.TemporaryDirectory(prefix="totk-progress-ui-") as directory:
+            binary = pathlib.Path(directory) / "ProgressUITests"
+            build = subprocess.run([
+                "xcrun", "clang", "-fobjc-arc", "-fblocks", "-Wall", "-Wextra", "-Werror",
+                "-Wno-deprecated-declarations", "-framework", "Foundation", "-framework", "AppKit",
+                str(ROOT / "games/totk/runtime/progress_store.m"),
+                str(ROOT / "games/totk/runtime/progress_transport.m"),
+                str(ROOT / "games/totk/runtime/progress_sync.m"),
+                str(ROOT / "tests/progress_ui_probe.m"), "-o", str(binary),
+            ], capture_output=True, text=True)
+            self.assertEqual(build.returncode, 0, build.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            print(result.stdout.strip())
 
     def test_native_transport(self):
         with tempfile.TemporaryDirectory(prefix="totk-progress-transfer-build-") as directory:
